@@ -1,3 +1,4 @@
+import * as $ from "jquery";
 import * as _ from "lodash";
 
 interface _any {
@@ -9,18 +10,18 @@ interface KeyValuePair extends _any {
     value: any
 }
 
-class Component {
+export default class Component {
     el: string;
     $: JQuery;
     template = "";
 
     constructor( el: string, ...options: any ) {
         var self = this;
-        $(document).ready(function() {
+        $(function() {
             self.el = el;
             self.$ = $(self.el);
-            self.component = (typeof self.component == "function")? self.component(): self.component;
             self.state = (typeof self.state == "function")? self.state(): self.state;
+            self.collection = (typeof self.collection == "function")? self.collection(): self.collection;
             self.ready = (typeof self.ready == "function")? self.ready(): self.ready;
             self._initialReady = self.ready;
             self.events = (typeof self.events == "function")? self.events(): self.events;
@@ -48,9 +49,9 @@ class Component {
     public ready: _any = {};
     public set: _any = {};
     public mutate: _any = {};
-    public component: _any = {};
     public _observer: MutationObserver = undefined;
     public _initialReady: _any = {};
+    public collection: any = undefined;
 
     public _mutate() {
         let self = this;
@@ -61,8 +62,12 @@ class Component {
         });
     }
 
-    public _state() {
-        var self = this;
+    public _state( state?: any ) {
+        let self = this;
+        if ( state ) {
+            self.state = state;
+            self.$.triggerHandler( "mutate", ["*"] );
+        }
         self.state = new Proxy( Object.assign({}, self.state), {
             set: function( target, property: any, value ) {
                 target[property] = value;
@@ -99,7 +104,7 @@ class Component {
                 target.key == "self"
             ) {
                 target.value.forEach(function( element: any ) {
-                    element((target.key == "self")? self.$: $(target.key));
+                    element.call( self, (target.key == "self")? self.$: $(target.key) );
                 });
                 return false;
             } else {
@@ -118,7 +123,7 @@ class Component {
     public _events() {
         var self = this;
         self.entries( self.events ).forEach(function( event ) {
-            let data = event.key.split(" ");
+            var data = event.key.split(" ");
             if ( data.length == 1) {
                 data[1] =  "self";
             } else if ( data.length > 2 ) {
@@ -158,7 +163,31 @@ class Component {
         }, {});
     }
 
-    render() {
+    public renderCollection() {
+        let self = this;
+        if ( self.collection.elements ) {
+            self.$.find( self.collection.el ).empty();
+        }
+        let collection = self.state[self.collection.source];
+        if (Array.isArray( collection )) {
+            self.collection.elements = collection.reduce(function( elements: any[], state: any, index: number ) {
+                let el = $(_.template( self.collection.template )( state )).appendTo( self.collection.el );
+                if ( self.collection.action ) {
+                    self.collection.action( el, state, index );
+                }
+                elements.push({
+                    el: el,
+                    state: state
+                });
+                return elements;
+            }, []);
+            self.$.triggerHandler("renderCollection");
+        } else {
+            throw new Error("The collection source was not an array.");
+        }
+    }
+
+    public render() {
         let self = this;
         self.$.off();
         self.$.html(_.template( self.template )( self.state ));
