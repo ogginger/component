@@ -1,5 +1,5 @@
-import * as $ from "jquery";
-import * as _ from "lodash";
+import $ from "jquery";
+import _ from "lodash";
 
 interface _any {
     [key: string]: any
@@ -11,13 +11,16 @@ interface KeyValuePair extends _any {
 }
 
 export default class Component {
-    el: string;
-    $: JQuery;
-    template = "";
+    public el: any;
+    public $: JQuery;
+    public template: any = undefined;
 
-    constructor( el: string, ...options: any ) {
+    constructor( el: (string|Element), ...options: any ) {
         var self = this;
         $(function() {
+            if ( el == undefined ) {
+                throw new Error("The element was not defined.");
+            }
             self.el = el;
             self.$ = $(self.el);
             self.state = (typeof self.state == "function")? self.state(): self.state;
@@ -55,7 +58,7 @@ export default class Component {
 
     public _mutate() {
         let self = this;
-        self.$.on("mutate", function( event, property ) {
+        self.$.on("mutate", function( event: any, property: any ) {
             if( self.mutate[property] != undefined ) {
                 self.mutate[property].call( self, event );
             }
@@ -100,7 +103,7 @@ export default class Component {
         let self = this;
         self.ready = self.fromEntries(self.entries( self.ready ).filter(function( target ) {
             if ( 
-                $(self.el).find(target.key).length != 0  ||
+                self.$.find(target.key).length != 0  ||
                 target.key == "self"
             ) {
                 target.value.forEach(function( element: any ) {
@@ -117,20 +120,20 @@ export default class Component {
     public _observe() {
         let self = this;
         self._observer = new MutationObserver(self._do.bind(self));
-        self._observer.observe(document.querySelector(self.el), { subtree: true, childList: true });
+        self._observer.observe(self.$[0], { subtree: true, childList: true });
     }
 
     public _events() {
         var self = this;
-        self.entries( self.events ).forEach(function( event ) {
-            var data = event.key.split(" ");
+        self.entries( self.events ).forEach(function( event: any ) {
+            let data = event.key.split(" ");
             if ( data.length == 1) {
                 data[1] =  "self";
             } else if ( data.length > 2 ) {
                 data[1] = data.slice( 1 ).join(" ");
             }
             self.ready[data[1]] = function() {
-                $((data[1] == "self")? self.el: data[1]).on(data[0], event.value.bind( self ));
+                ((data[1] == "self")? self.$: self.$.find(data[1])).on(data[0], event.value.bind( self ));
             };
         });
         self._do();
@@ -165,19 +168,26 @@ export default class Component {
 
     public renderCollection() {
         let self = this;
+        let container$ = (self.collection.el == "self")? self.$: self.$.find( self.collection.el );
         if ( self.collection.elements ) {
-            self.$.find( self.collection.el ).empty();
+            $(container$).empty();
         }
         let collection = self.state[self.collection.source];
         if (Array.isArray( collection )) {
             self.collection.elements = collection.reduce(function( elements: any[], state: any, index: number ) {
-                let el = $(_.template( self.collection.template )( state )).appendTo( self.collection.el );
+                let template = (typeof self.collection.template == "string")? self.collection.template: self.collection.template( state, index );
+                let el = $( template ).appendTo( container$ );
+                let view: any = undefined;
+                if ( self.collection.view ) {
+                    view = self.collection.view( el, state, index );
+                }
                 if ( self.collection.action ) {
-                    self.collection.action( el, state, index );
+                    self.collection.action( el, state, index, view );
                 }
                 elements.push({
-                    el: el,
-                    state: state
+                    el,
+                    state,
+                    view
                 });
                 return elements;
             }, []);
@@ -190,7 +200,7 @@ export default class Component {
     public render() {
         let self = this;
         self.$.off();
-        self.$.html(_.template( self.template )( self.state ));
+        self.$.html(self.template( self.state ));
         self._on();
         self.$.triggerHandler("render");
     }
