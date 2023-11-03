@@ -1,0 +1,33 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build - Component (tsc)",
+            "command": "tsc",
+            "type": "shell",
+            "args": [
+                "-d",
+                "-p",
+                "."
+            ],
+            "problemMatcher": [
+                "$tsc"
+            ],
+            "presentation": {
+                "reveal": "always"
+            },
+            "group": "build"
+        }, {
+            "label": "Watch - Component (tsc)",
+            "type": "shell",
+            "command": "tsc",
+            "args": [
+                "--watch",
+                "-p",
+                "."
+            ],
+            "problemMatcher": [],
+            "group": "build"
+        }
+    ]
+}
